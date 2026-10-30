@@ -1,0 +1,2732 @@
+{
+  "generated_at": "2026-09-20 12:55:52",
+  "model": "jev-1.13.0",
+  "n_scenarios": 26,
+  "total_elapsed": 17.54,
+  "note": "TypeSafe Jev (System One) 真实调用的请求/响应原样记录。所有请求由本目录 ../scripts/jev.py 的 build_payload 可原样重建;解析层由 ../tests/test_jev.py 重放校验。",
+  "results": [
+    {
+      "id": "A1",
+      "group": "路由",
+      "title": "LLM 模型路由：把请求派给合适的模型档位",
+      "note": "生产里最容易吃钱的一环：不是所有请求都值得喂给 frontier 模型。Jev 在这里的输出直接是代码里的 switch 分支。",
+      "elapsed": 0.648,
+      "tokens": {
+        "inp": 586,
+        "out": 116
+      },
+      "io": {
+        "request": {
+          "state": "用户请求：帮我把这段 Python 的递归改成迭代，顺便解释一下为什么递归会栈溢出。",
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "instructions": "这条请求应该路由给哪一档模型？判断依据是任务的认知负荷。",
+              "criteria": {
+                "tiny": "微型模型：改写/格式化/翻译等确定性改写",
+                "small": "小模型：单文件代码改动、简单问答",
+                "mid": "中档模型：多文件重构、需要一定推理",
+                "frontier": "前沿模型：需要长链推理、架构设计、开放研究"
+              }
+            },
+            "reason_code": {
+              "type": "choice",
+              "instructions": "最关键的判定依据是什么？",
+              "criteria": {
+                "length": "输入长度",
+                "reasoning_depth": "推理深度",
+                "code_scope": "代码改动范围",
+                "ambiguity": "需求歧义度"
+              }
+            },
+            "confident": {
+              "type": "noul",
+              "instructions": "是否确信该路由判断，无需人工介入？"
+            }
+          }
+        },
+        "latency": 0.648,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "route": {
+              "type": "choice",
+              "choice": "small",
+              "confidence": 0.81,
+              "probabilities": {
+                "small": 0.86,
+                "tiny": 0.0,
+                "frontier": 0.0,
+                "mid": 0.14
+              }
+            },
+            "reason_code": {
+              "type": "choice",
+              "choice": "ambiguity",
+              "confidence": 0.28,
+              "probabilities": {
+                "length": 0.01,
+                "reasoning_depth": 0.16,
+                "ambiguity": 0.45,
+                "code_scope": 0.38
+              }
+            },
+            "confident": {
+              "type": "noul",
+              "noul": 0.41
+            }
+          },
+          "usage": {
+            "input_tokens": 586,
+            "output_tokens": 116
+          }
+        }
+      }
+    },
+    {
+      "id": "A2",
+      "group": "路由",
+      "title": "Agent 循环中的下一步路由：proceed / cheaper_first / skip",
+      "note": "精髓是 shadow mode——先只建议不执行，观察一段时间再放权。",
+      "elapsed": 0.618,
+      "tokens": {
+        "inp": 513,
+        "out": 69
+      },
+      "io": {
+        "request": {
+          "state": "Agent 当前状态：目标=找出竞品 X 的定价页。已抓取 3 个页面，均无定价信息。当前余额 $0.42，已用 6 步。候选动作：a) 直接再抓第 4 个搜索结果 b) 先用 1 次便宜搜索定位 c) 放弃并汇报。",
+          "model": "jev-latest",
+          "questions": {
+            "next": {
+              "type": "choice",
+              "instructions": "Agent 下一步该做什么？",
+              "criteria": {
+                "proceed": "直接执行当前候选动作",
+                "cheaper_first": "先用更低成本的方式探路",
+                "skip": "跳过此路，该信息不值得继续投入",
+                "replan": "当前子目标无解，重新规划"
+              }
+            },
+            "budget_ok": {
+              "type": "noul",
+              "instructions": "按当前消耗速率，剩余预算是否足以完成目标？"
+            }
+          }
+        },
+        "latency": 0.618,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "next": {
+              "type": "choice",
+              "choice": "cheaper_first",
+              "confidence": 0.83,
+              "probabilities": {
+                "proceed": 0.05,
+                "replan": 0.04,
+                "cheaper_first": 0.88,
+                "skip": 0.03
+              }
+            },
+            "budget_ok": {
+              "type": "noul",
+              "noul": 0.41
+            }
+          },
+          "usage": {
+            "input_tokens": 513,
+            "output_tokens": 69
+          }
+        }
+      }
+    },
+    {
+      "id": "A3",
+      "group": "路由",
+      "title": "四路分流：agent / human / replan / block",
+      "note": "四路分流是 Agent 平台的骨架决策：谁能自己干、谁要人接手、谁要重规划、谁直接拦。",
+      "elapsed": 0.67,
+      "tokens": {
+        "inp": 527,
+        "out": 79
+      },
+      "io": {
+        "request": {
+          "state": "任务：客户要求把合同里的自动续费条款删掉并重新发送签署链接。系统检测到：合同处于已签署状态，当前用户角色为 sales_rep，无 legal 权限；合同金额 ¥480,000。",
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "instructions": "该任务应该走哪条路？",
+              "criteria": {
+                "agent": "Agent 可自主完成",
+                "human": "需转人工/法务审批",
+                "replan": "当前路径不可行，需重新规划步骤",
+                "block": "直接拦截，不允许执行"
+              }
+            },
+            "risk_level": {
+              "type": "score",
+              "instructions": "若错误执行的后果严重度",
+              "criteria": [
+                "可忽略",
+                "轻微",
+                "中等",
+                "严重",
+                "不可逆"
+              ]
+            },
+            "needs_legal": {
+              "type": "noul",
+              "instructions": "是否必须经法务角色审批？"
+            }
+          }
+        },
+        "latency": 0.67,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "route": {
+              "type": "choice",
+              "choice": "human",
+              "confidence": 0.81,
+              "probabilities": {
+                "block": 0.13,
+                "replan": 0.01,
+                "human": 0.86,
+                "agent": 0.0
+              }
+            },
+            "risk_level": {
+              "type": "score",
+              "score": 3.12,
+              "confidence": 0.78,
+              "legend": {
+                "0": "可忽略",
+                "1": "轻微",
+                "2": "中等",
+                "3": "严重",
+                "4": "不可逆"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.01,
+                "2": 0.06,
+                "3": 0.74,
+                "4": 0.19
+              }
+            },
+            "needs_legal": {
+              "type": "noul",
+              "noul": 0.89
+            }
+          },
+          "usage": {
+            "input_tokens": 527,
+            "output_tokens": 79
+          }
+        }
+      }
+    },
+    {
+      "id": "A4",
+      "group": "路由",
+      "title": "意图路由 + 缺槽检测（客服入口）",
+      "note": "一次调用同时出：意图、情绪、是否需要澄清、缺哪个槽位。四个问题一次付费。",
+      "elapsed": 0.608,
+      "tokens": {
+        "inp": 579,
+        "out": 124
+      },
+      "io": {
+        "request": {
+          "state": "客户：我上个月明明取消了会员，为什么这个月还扣了 39 块？你们是不是偷扣我钱？给我退回来！",
+          "model": "jev-latest",
+          "questions": {
+            "intent": {
+              "type": "choice",
+              "instructions": "核心意图？",
+              "criteria": {
+                "refund": "要求退款",
+                "explain": "要求解释扣费原因",
+                "cancel": "要求确认/完成取消",
+                "complain": "单纯发泄投诉"
+              }
+            },
+            "emotion": {
+              "type": "score",
+              "instructions": "负面情绪强度",
+              "criteria": [
+                "平静",
+                "轻微不悦",
+                "明显不满",
+                "愤怒",
+                "极端愤怒"
+              ]
+            },
+            "need_clarify": {
+              "type": "noul",
+              "instructions": "是否缺少必要信息，需要先向客户追问？"
+            },
+            "missing_slot": {
+              "type": "choice",
+              "instructions": "最关键的缺失信息是什么？",
+              "criteria": {
+                "order_id": "订单/账号 ID",
+                "date": "扣费时间",
+                "channel": "扣费渠道",
+                "none": "信息已足够"
+              }
+            }
+          }
+        },
+        "latency": 0.608,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "intent": {
+              "type": "choice",
+              "choice": "refund",
+              "confidence": 0.99,
+              "probabilities": {
+                "explain": 0.0,
+                "cancel": 0.0,
+                "refund": 1.0,
+                "complain": 0.0
+              }
+            },
+            "emotion": {
+              "type": "score",
+              "score": 3.0,
+              "confidence": 0.97,
+              "legend": {
+                "0": "平静",
+                "1": "轻微不悦",
+                "2": "明显不满",
+                "3": "愤怒",
+                "4": "极端愤怒"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.02,
+                "3": 0.97,
+                "4": 0.01
+              }
+            },
+            "need_clarify": {
+              "type": "noul",
+              "noul": 0.84
+            },
+            "missing_slot": {
+              "type": "choice",
+              "choice": "order_id",
+              "confidence": 0.96,
+              "probabilities": {
+                "channel": 0.01,
+                "none": 0.0,
+                "date": 0.02,
+                "order_id": 0.97
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 579,
+            "output_tokens": 124
+          }
+        }
+      }
+    },
+    {
+      "id": "B1",
+      "group": "分诊",
+      "title": "客服工单分诊（类别+紧急度+转人工+情绪，一次出）",
+      "note": "传统做法要训一个分类器 + 一堆正则。Jev 是零训练上场。",
+      "elapsed": 0.632,
+      "tokens": {
+        "inp": 638,
+        "out": 141
+      },
+      "io": {
+        "request": {
+          "state": "工单内容：我们公司 200 人的报销系统昨天开始登录就报 500，财务部今天要结账，已经积压了 80 多单。你们能不能今天内恢复？不然我们要走违约条款了。",
+          "model": "jev-latest",
+          "questions": {
+            "category": {
+              "type": "choice",
+              "instructions": "工单类别？",
+              "criteria": {
+                "outage": "系统故障/不可用",
+                "billing": "账单/费用争议",
+                "howto": "使用咨询",
+                "feature": "功能需求",
+                "data": "数据问题"
+              }
+            },
+            "urgency": {
+              "type": "choice",
+              "instructions": "紧急度分级（用于 SLA 派单）？",
+              "criteria": {
+                "p0": "P0 立即响应：业务中断且有明确损失",
+                "p1": "P1 2 小时内：业务受影响但可绕行",
+                "p2": "P2 当日：体验问题，无直接损失",
+                "p3": "P3 常规：咨询类"
+              }
+            },
+            "escalate": {
+              "type": "noul",
+              "instructions": "是否需要在派单同时上报值班负责人？"
+            },
+            "churn_risk": {
+              "type": "noul",
+              "instructions": "这个客户是否流露出流失/终止合作的风险信号？"
+            }
+          }
+        },
+        "latency": 0.632,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "category": {
+              "type": "choice",
+              "choice": "outage",
+              "confidence": 1.0,
+              "probabilities": {
+                "howto": 0.0,
+                "billing": 0.0,
+                "feature": 0.0,
+                "data": 0.0,
+                "outage": 1.0
+              }
+            },
+            "urgency": {
+              "type": "choice",
+              "choice": "p0",
+              "confidence": 0.98,
+              "probabilities": {
+                "p2": 0.0,
+                "p1": 0.01,
+                "p0": 0.99,
+                "p3": 0.0
+              }
+            },
+            "escalate": {
+              "type": "noul",
+              "noul": 0.85
+            },
+            "churn_risk": {
+              "type": "noul",
+              "noul": 0.91
+            }
+          },
+          "usage": {
+            "input_tokens": 638,
+            "output_tokens": 141
+          }
+        }
+      }
+    },
+    {
+      "id": "B2",
+      "group": "分诊",
+      "title": "生产告警分诊：真故障 vs 噪声",
+      "note": "告警风暴里最贵的是人的注意力。Jev 用一次调用决定：叫不叫人起床。",
+      "elapsed": 0.687,
+      "tokens": {
+        "inp": 554,
+        "out": 78
+      },
+      "io": {
+        "request": {
+          "state": "告警：service=payment-api, alert=HTTP_5xx_rate_high, value=8.4%, threshold=2%, duration=3m。同期同机房的 order-api 也报了 5xx。部署记录显示 12 分钟前 payment-api 有一次全量发布。历史 baseline：该服务 5xx 常年 0.3%。",
+          "model": "jev-latest",
+          "questions": {
+            "actionable": {
+              "type": "choice",
+              "instructions": "该告警应该怎么处理？",
+              "criteria": {
+                "page": "立即呼叫值班（真实故障）",
+                "ticket": "开单跟踪，不打断睡眠",
+                "silence": "静音/抑制（噪声或已被其他告警覆盖）",
+                "watch": "继续观察，暂不动作"
+              }
+            },
+            "severity": {
+              "type": "score",
+              "instructions": "实际严重度",
+              "criteria": [
+                "无影响",
+                "轻微",
+                "中等",
+                "严重",
+                "灾难"
+              ]
+            },
+            "rollback": {
+              "type": "noul",
+              "instructions": "是否应建议立即回滚刚才那次发布？"
+            }
+          }
+        },
+        "latency": 0.687,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "actionable": {
+              "type": "choice",
+              "choice": "page",
+              "confidence": 1.0,
+              "probabilities": {
+                "watch": 0.0,
+                "ticket": 0.0,
+                "silence": 0.0,
+                "page": 1.0
+              }
+            },
+            "severity": {
+              "type": "score",
+              "score": 3.03,
+              "confidence": 0.96,
+              "legend": {
+                "0": "无影响",
+                "1": "轻微",
+                "2": "中等",
+                "3": "严重",
+                "4": "灾难"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.01,
+                "3": 0.95,
+                "4": 0.04
+              }
+            },
+            "rollback": {
+              "type": "noul",
+              "noul": 0.9
+            }
+          },
+          "usage": {
+            "input_tokens": 554,
+            "output_tokens": 78
+          }
+        }
+      }
+    },
+    {
+      "id": "C1",
+      "group": "门控",
+      "title": "工具调用准入：allow / deny / confirm",
+      "note": "这是 Agent 安全最实在的一层：每次 tool call 前 100ms 问一次。",
+      "elapsed": 0.861,
+      "tokens": {
+        "inp": 506,
+        "out": 78
+      },
+      "io": {
+        "request": {
+          "state": "Agent 计划执行：bash 命令 `rm -rf /var/log/app/*`，运行身份 root，目标服务为生产环境 payment-api，当前无人值班审批，最近 1 小时无相关故障。",
+          "model": "jev-latest",
+          "questions": {
+            "verdict": {
+              "type": "choice",
+              "instructions": "是否允许执行该工具调用？",
+              "criteria": {
+                "allow": "允许，直接执行",
+                "confirm": "需人工二次确认后执行",
+                "deny": "拒绝执行",
+                "sandbox": "降级到沙箱/只读环境执行"
+              }
+            },
+            "blast_radius": {
+              "type": "score",
+              "instructions": "若执行出错的影响面",
+              "criteria": [
+                "无",
+                "单实例",
+                "单服务",
+                "多服务",
+                "全站"
+              ]
+            },
+            "is_prod": {
+              "type": "noul",
+              "instructions": "该操作是否触碰生产环境？"
+            }
+          }
+        },
+        "latency": 0.861,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "verdict": {
+              "type": "choice",
+              "choice": "deny",
+              "confidence": 0.35,
+              "probabilities": {
+                "sandbox": 0.0,
+                "deny": 0.52,
+                "confirm": 0.48,
+                "allow": 0.0
+              }
+            },
+            "blast_radius": {
+              "type": "score",
+              "score": 1.99,
+              "confidence": 0.85,
+              "legend": {
+                "0": "无",
+                "1": "单实例",
+                "2": "单服务",
+                "3": "多服务",
+                "4": "全站"
+              },
+              "probabilities": {
+                "0": 0.01,
+                "1": 0.08,
+                "2": 0.85,
+                "3": 0.04,
+                "4": 0.02
+              }
+            },
+            "is_prod": {
+              "type": "noul",
+              "noul": 0.97
+            }
+          },
+          "usage": {
+            "input_tokens": 506,
+            "output_tokens": 78
+          }
+        }
+      }
+    },
+    {
+      "id": "C2",
+      "group": "门控",
+      "title": "代码安全门：注入风险 + 修复方案",
+      "note": "注意：Jev 不做代码生成，它只回答「有没有风险 / 属哪一类 / 怎么修」。修复代码仍由 LLM 出。",
+      "elapsed": 0.587,
+      "tokens": {
+        "inp": 617,
+        "out": 146
+      },
+      "io": {
+        "request": {
+          "state": "def get_user(request):\n    uid = request.args.get('id')\n    sql = f\"SELECT * FROM users WHERE id = {uid}\"\n    return db.execute(sql).fetchone()",
+          "model": "jev-latest",
+          "questions": {
+            "vuln": {
+              "type": "noul",
+              "instructions": "这段代码是否存在注入类安全漏洞？"
+            },
+            "kind": {
+              "type": "choice",
+              "instructions": "若有，属于哪一类？",
+              "criteria": {
+                "sqli": "SQL 注入",
+                "xss": "跨站脚本",
+                "rce": "远程命令执行",
+                "idor": "越权访问",
+                "unsafe_deser": "不安全反序列化",
+                "none": "无明显漏洞"
+              }
+            },
+            "severity": {
+              "type": "score",
+              "instructions": "风险等级",
+              "criteria": [
+                "无害",
+                "低",
+                "中",
+                "高",
+                "严重"
+              ]
+            },
+            "fix": {
+              "type": "choice",
+              "instructions": "最恰当的修复方式？",
+              "criteria": {
+                "param": "参数化查询 / 预编译",
+                "escape": "手动转义输入",
+                "validate": "加输入白名单校验",
+                "waf": "仅加 WAF 拦截",
+                "nothing": "无需修复"
+              }
+            }
+          }
+        },
+        "latency": 0.587,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "vuln": {
+              "type": "noul",
+              "noul": 0.98
+            },
+            "kind": {
+              "type": "choice",
+              "choice": "sqli",
+              "confidence": 1.0,
+              "probabilities": {
+                "sqli": 1.0,
+                "none": 0.0,
+                "xss": 0.0,
+                "unsafe_deser": 0.0,
+                "idor": 0.0,
+                "rce": 0.0
+              }
+            },
+            "severity": {
+              "type": "score",
+              "score": 3.94,
+              "confidence": 0.95,
+              "legend": {
+                "0": "无害",
+                "1": "低",
+                "2": "中",
+                "3": "高",
+                "4": "严重"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.0,
+                "3": 0.05,
+                "4": 0.95
+              }
+            },
+            "fix": {
+              "type": "choice",
+              "choice": "param",
+              "confidence": 1.0,
+              "probabilities": {
+                "validate": 0.0,
+                "escape": 0.0,
+                "param": 1.0,
+                "nothing": 0.0,
+                "waf": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 617,
+            "output_tokens": 146
+          }
+        }
+      }
+    },
+    {
+      "id": "C3",
+      "group": "门控",
+      "title": "交易风控实时判决（<100ms 级）",
+      "note": "风控是典型的「高频 + 只要一个判断 + 要概率不要解释」。",
+      "elapsed": 0.562,
+      "tokens": {
+        "inp": 640,
+        "out": 131
+      },
+      "io": {
+        "request": {
+          "state": "订单：user=u_88431（注册 2 天），金额 ¥12,800，商品=iPhone 17 Pro，收货地址与历史地址城市不同，设备指纹首次出现，支付卡 BIN 归属地与 IP 归属地不一致，近 1 小时同设备尝试 5 笔均失败。",
+          "model": "jev-latest",
+          "questions": {
+            "fraud": {
+              "type": "noul",
+              "instructions": "该订单是否应判为欺诈风险单？"
+            },
+            "risk": {
+              "type": "score",
+              "instructions": "风险分档",
+              "criteria": [
+                "极低",
+                "低",
+                "中",
+                "高",
+                "极高"
+              ]
+            },
+            "action": {
+              "type": "choice",
+              "instructions": "系统应采取什么动作？",
+              "criteria": {
+                "pass": "直接放行",
+                "3ds": "走 3DS 强验证",
+                "manual": "转人工审核",
+                "block": "直接拦截"
+              }
+            },
+            "top_signal": {
+              "type": "choice",
+              "instructions": "最具判别力的单一信号？",
+              "criteria": {
+                "account_age": "账号年龄",
+                "address": "地址异常",
+                "device": "设备指纹异常",
+                "geo_mismatch": "卡/IP 地域不一致",
+                "velocity": "短时高频失败"
+              }
+            }
+          }
+        },
+        "latency": 0.562,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "fraud": {
+              "type": "noul",
+              "noul": 0.95
+            },
+            "risk": {
+              "type": "score",
+              "score": 3.98,
+              "confidence": 0.99,
+              "legend": {
+                "0": "极低",
+                "1": "低",
+                "2": "中",
+                "3": "高",
+                "4": "极高"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.0,
+                "3": 0.01,
+                "4": 0.99
+              }
+            },
+            "action": {
+              "type": "choice",
+              "choice": "block",
+              "confidence": 0.87,
+              "probabilities": {
+                "pass": 0.0,
+                "3ds": 0.01,
+                "manual": 0.08,
+                "block": 0.91
+              }
+            },
+            "top_signal": {
+              "type": "choice",
+              "choice": "velocity",
+              "confidence": 0.9,
+              "probabilities": {
+                "account_age": 0.0,
+                "velocity": 0.92,
+                "geo_mismatch": 0.05,
+                "address": 0.0,
+                "device": 0.03
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 640,
+            "output_tokens": 131
+          }
+        }
+      }
+    },
+    {
+      "id": "D1",
+      "group": "审核",
+      "title": "Discord 垃圾/诈骗链接检测",
+      "note": "审核类最讲究「宁放勿错杀」，所以要同时拿概率和动作两档。",
+      "elapsed": 0.631,
+      "tokens": {
+        "inp": 627,
+        "out": 141
+      },
+      "io": {
+        "request": {
+          "state": "Discord 消息：🎉 恭喜你被抽中！免费领取 0.5 ETH，仅剩 3 个名额，先到先得 👉 http://eth-airdrop-claim.xyz/gift?ref=9921\n用户加入服务器 4 分钟，发送 12 条相同消息，无历史发言。",
+          "model": "jev-latest",
+          "questions": {
+            "spam": {
+              "type": "noul",
+              "instructions": "这条消息是否属于垃圾/诈骗内容？"
+            },
+            "scam_type": {
+              "type": "choice",
+              "instructions": "若属于，属于哪一类？",
+              "criteria": {
+                "crypto": "加密货币/空投诈骗",
+                "phishing": "钓鱼链接",
+                "ad": "纯广告刷屏",
+                "malware": "恶意软件分发",
+                "legit": "正常内容"
+              }
+            },
+            "action": {
+              "type": "choice",
+              "instructions": "机器人应采取的动作？",
+              "criteria": {
+                "delete": "删除消息",
+                "timeout": "禁言+删除",
+                "ban": "封禁账号",
+                "warn": "仅警告",
+                "ignore": "不处理"
+              }
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "instructions": "该判定是否足够可靠，可以直接自动执行而无需人工复核？"
+            }
+          }
+        },
+        "latency": 0.631,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "spam": {
+              "type": "noul",
+              "noul": 0.98
+            },
+            "scam_type": {
+              "type": "choice",
+              "choice": "crypto",
+              "confidence": 0.96,
+              "probabilities": {
+                "legit": 0.0,
+                "malware": 0.0,
+                "phishing": 0.03,
+                "crypto": 0.97,
+                "ad": 0.0
+              }
+            },
+            "action": {
+              "type": "choice",
+              "choice": "timeout",
+              "confidence": 0.47,
+              "probabilities": {
+                "warn": 0.0,
+                "timeout": 0.58,
+                "delete": 0.08,
+                "ignore": 0.0,
+                "ban": 0.34
+              }
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "noul": 0.4
+            }
+          },
+          "usage": {
+            "input_tokens": 627,
+            "output_tokens": 141
+          }
+        }
+      }
+    },
+    {
+      "id": "D2",
+      "group": "审核",
+      "title": "Shadow gate：判定文本是否在断言因果 / 预测 / 建议",
+      "note": "完美复刻社区真实生产用法：把一批历史内容跑一遍，先看分布再决定要不要上闸门（feed unchanged so far = shadow mode）。",
+      "elapsed": 0.602,
+      "tokens": {
+        "inp": 514,
+        "out": 91
+      },
+      "io": {
+        "request": {
+          "state": "这条推文：GLM-5.3-Flash 和 DeepSeek-V4.1-Flash 把百万 token 成本卷到了几毛钱。但搭 Agent 跑起来才发现：最贵最慢的根本不是生成代码，而是在循环里拿几十万 context 去问「这个弹窗要不要点确定」。",
+          "model": "jev-latest",
+          "questions": {
+            "assertion_type": {
+              "type": "choice",
+              "instructions": "这段文本主要在做什么？",
+              "criteria": {
+                "none": "只是陈述/描述，未做因果或预测或建议",
+                "causal": "断言因果关系",
+                "predictive": "做出预测",
+                "advice": "给出建议/推荐"
+              }
+            },
+            "temporal_claim": {
+              "type": "noul",
+              "instructions": "文本是否包含对未来的断言？"
+            },
+            "needs_citation": {
+              "type": "noul",
+              "instructions": "若作为研究材料引用，是否必须先补充证据来源？"
+            }
+          }
+        },
+        "latency": 0.602,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "assertion_type": {
+              "type": "choice",
+              "choice": "causal",
+              "confidence": 0.67,
+              "probabilities": {
+                "advice": 0.0,
+                "predictive": 0.0,
+                "causal": 0.75,
+                "none": 0.25
+              }
+            },
+            "temporal_claim": {
+              "type": "noul",
+              "noul": 0.1
+            },
+            "needs_citation": {
+              "type": "noul",
+              "noul": 0.8
+            }
+          },
+          "usage": {
+            "input_tokens": 514,
+            "output_tokens": 91
+          }
+        }
+      }
+    },
+    {
+      "id": "D3",
+      "group": "审核",
+      "title": "UGC 多维合规审核（一次出四维）",
+      "note": "一次调用同时给四个独立维度，是 Jev「问题并行不增时」最直接的省钱手法。",
+      "elapsed": 0.577,
+      "tokens": {
+        "inp": 542,
+        "out": 117
+      },
+      "io": {
+        "request": {
+          "state": "用户上传的评论：你们这帮废物，做的东西连我奶奶都不如，趁早关门算了！有本事出来单挑，我知道你们公司在福田，我明天就去找你们。",
+          "model": "jev-latest",
+          "questions": {
+            "harassment": {
+              "type": "noul",
+              "instructions": "是否构成人身攻击/骚扰？"
+            },
+            "threat": {
+              "type": "noul",
+              "instructions": "是否包含人身安全威胁或线下威胁？"
+            },
+            "spam": {
+              "type": "noul",
+              "instructions": "是否属于广告/刷屏类垃圾内容？"
+            },
+            "action": {
+              "type": "choice",
+              "instructions": "应采取的审核动作？",
+              "criteria": {
+                "pass": "放行",
+                "hide": "折叠/降权",
+                "delete": "删除",
+                "mute": "禁言",
+                "report": "删除并上报安全团队"
+              }
+            },
+            "severity": {
+              "type": "score",
+              "instructions": "综合违规严重度",
+              "criteria": [
+                "合规",
+                "轻微",
+                "中等",
+                "严重",
+                "违法"
+              ]
+            }
+          }
+        },
+        "latency": 0.577,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "harassment": {
+              "type": "noul",
+              "noul": 0.96
+            },
+            "threat": {
+              "type": "noul",
+              "noul": 0.96
+            },
+            "spam": {
+              "type": "noul",
+              "noul": 0.06
+            },
+            "action": {
+              "type": "choice",
+              "choice": "report",
+              "confidence": 0.78,
+              "probabilities": {
+                "mute": 0.01,
+                "report": 0.82,
+                "delete": 0.16,
+                "pass": 0.0,
+                "hide": 0.01
+              }
+            },
+            "severity": {
+              "type": "score",
+              "score": 3.35,
+              "confidence": 0.62,
+              "legend": {
+                "0": "合规",
+                "1": "轻微",
+                "2": "中等",
+                "3": "严重",
+                "4": "违法"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.05,
+                "3": 0.55,
+                "4": 0.4
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 542,
+            "output_tokens": 117
+          }
+        }
+      }
+    },
+    {
+      "id": "E1",
+      "group": "批量",
+      "title": "一条内容 14 个是/否问题——批量打标（复刻 100k/20.4s 案例）",
+      "note": "关键：14 个问题塞进一次调用，只付一次往返。这就是它「加问题几乎不加时」的复利。",
+      "elapsed": 0.643,
+      "tokens": {
+        "inp": 679,
+        "out": 297
+      },
+      "io": {
+        "request": {
+          "state": "帖子：刚用 Claude Code 一晚上把公司内部 3 个服务的老旧部署脚本全迁到 GitHub Actions，爽。就是我还没写测试，明天得补。",
+          "model": "jev-latest",
+          "questions": {
+            "q_lang_en": {
+              "type": "noul",
+              "instructions": "文本主要为英文？"
+            },
+            "q_has_link": {
+              "type": "noul",
+              "instructions": "是否包含链接？"
+            },
+            "q_has_number": {
+              "type": "noul",
+              "instructions": "是否包含具体数字或量化信息？"
+            },
+            "q_is_first_person": {
+              "type": "noul",
+              "instructions": "是否为第一人称叙述？"
+            },
+            "q_past_tense_event": {
+              "type": "noul",
+              "instructions": "是否在叙述已发生的事？"
+            },
+            "q_future_plan": {
+              "type": "noul",
+              "instructions": "是否提到未来的计划/待办？"
+            },
+            "q_negative_sentiment": {
+              "type": "noul",
+              "instructions": "是否表达负面情绪？"
+            },
+            "q_is_question": {
+              "type": "noul",
+              "instructions": "是否是一个提问？"
+            },
+            "q_mentions_tool": {
+              "type": "noul",
+              "instructions": "是否提及具体工具或产品名？"
+            },
+            "q_unfinished_task": {
+              "type": "noul",
+              "instructions": "是否自曝有未完成的工作？"
+            },
+            "q_needs_followup": {
+              "type": "noul",
+              "instructions": "是否值得运营团队跟进互动？"
+            },
+            "q_is_original": {
+              "type": "noul",
+              "instructions": "内容看起来是原创而非转载？"
+            },
+            "topic": {
+              "type": "choice",
+              "instructions": "主题类别？",
+              "criteria": {
+                "dev": "开发/工程",
+                "ai": "AI/模型",
+                "career": "职业/职场",
+                "product": "产品/发布",
+                "offtopic": "闲聊/无关"
+              }
+            },
+            "quality": {
+              "type": "score",
+              "instructions": "信息质量分档",
+              "criteria": [
+                "噪声",
+                "低",
+                "中",
+                "高",
+                "优质"
+              ]
+            }
+          }
+        },
+        "latency": 0.643,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "q_lang_en": {
+              "type": "noul",
+              "noul": 0.02
+            },
+            "q_has_link": {
+              "type": "noul",
+              "noul": 0.03
+            },
+            "q_has_number": {
+              "type": "noul",
+              "noul": 0.98
+            },
+            "q_is_first_person": {
+              "type": "noul",
+              "noul": 0.98
+            },
+            "q_past_tense_event": {
+              "type": "noul",
+              "noul": 0.95
+            },
+            "q_future_plan": {
+              "type": "noul",
+              "noul": 0.99
+            },
+            "q_negative_sentiment": {
+              "type": "noul",
+              "noul": 0.07
+            },
+            "q_is_question": {
+              "type": "noul",
+              "noul": 0.03
+            },
+            "q_mentions_tool": {
+              "type": "noul",
+              "noul": 0.99
+            },
+            "q_unfinished_task": {
+              "type": "noul",
+              "noul": 0.98
+            },
+            "q_needs_followup": {
+              "type": "noul",
+              "noul": 0.44
+            },
+            "q_is_original": {
+              "type": "noul",
+              "noul": 0.85
+            },
+            "topic": {
+              "type": "choice",
+              "choice": "dev",
+              "confidence": 0.99,
+              "probabilities": {
+                "product": 0.0,
+                "ai": 0.01,
+                "dev": 0.99,
+                "career": 0.0,
+                "offtopic": 0.0
+              }
+            },
+            "quality": {
+              "type": "score",
+              "score": 2.15,
+              "confidence": 0.64,
+              "legend": {
+                "0": "噪声",
+                "1": "低",
+                "2": "中",
+                "3": "高",
+                "4": "优质"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.14,
+                "2": 0.58,
+                "3": 0.28,
+                "4": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 679,
+            "output_tokens": 297
+          }
+        }
+      }
+    },
+    {
+      "id": "E2",
+      "group": "批量",
+      "title": "NHTSA 车辆投诉 6 分类——真实业务文本批处理",
+      "note": "这类「一份公开数据集 + 一次分类」是生产里最常见的落地姿势，也是最能直接对比传统分类器成本的。",
+      "elapsed": 0.609,
+      "tokens": {
+        "inp": 557,
+        "out": 118
+      },
+      "io": {
+        "request": {
+          "state": "Complaint: 2019 Honda CR-V. While driving on the highway at approximately 65 mph, the vehicle suddenly lost power and the dashboard displayed multiple warnings. I had to coast to the shoulder. This happened three times in two months. Dealer says they cannot reproduce it.",
+          "model": "jev-latest",
+          "questions": {
+            "category": {
+              "type": "choice",
+              "instructions": "按 NHTSA 常见投诉主题分类",
+              "criteria": {
+                "power_loss": "动力/熄火类",
+                "brake": "制动系统",
+                "electrical": "电气/电子",
+                "steering": "转向系统",
+                "airbag": "安全气囊",
+                "fuel": "燃油系统"
+              }
+            },
+            "safety_risk": {
+              "type": "noul",
+              "instructions": "是否涉及安全隐患（可能导致事故/人身伤害）？"
+            },
+            "reproducible": {
+              "type": "noul",
+              "instructions": "投诉中是否说明该问题可复现或多次发生？"
+            },
+            "severity": {
+              "type": "score",
+              "instructions": "严重度",
+              "criteria": [
+                "抱怨",
+                "不便",
+                "故障",
+                "危险",
+                "事故已发生"
+              ]
+            }
+          }
+        },
+        "latency": 0.609,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "category": {
+              "type": "choice",
+              "choice": "power_loss",
+              "confidence": 1.0,
+              "probabilities": {
+                "fuel": 0.0,
+                "brake": 0.0,
+                "airbag": 0.0,
+                "power_loss": 1.0,
+                "steering": 0.0,
+                "electrical": 0.0
+              }
+            },
+            "safety_risk": {
+              "type": "noul",
+              "noul": 0.95
+            },
+            "reproducible": {
+              "type": "noul",
+              "noul": 0.95
+            },
+            "severity": {
+              "type": "score",
+              "score": 2.99,
+              "confidence": 0.99,
+              "legend": {
+                "0": "抱怨",
+                "1": "不便",
+                "2": "故障",
+                "3": "危险",
+                "4": "事故已发生"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.01,
+                "3": 0.99,
+                "4": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 557,
+            "output_tokens": 118
+          }
+        }
+      }
+    },
+    {
+      "id": "E3",
+      "group": "批量",
+      "title": "系统评价文献初筛：纳入 / 排除 / 待定",
+      "note": "人工初筛是系统评价最耗时的环节之一：几千条题录，读标题摘要决定要不要进全文。Jev 输出的是三分类 + 排除理由码。",
+      "elapsed": 0.661,
+      "tokens": {
+        "inp": 667,
+        "out": 134
+      },
+      "io": {
+        "request": {
+          "state": "Title: Effect of Early Mobilization on ICU-Acquired Weakness in Mechanically Ventilated Adults: A Randomized Controlled Trial\nAbstract: We randomized 120 adults receiving mechanical ventilation >48h to early mobilization (n=60) or standard care (n=60). Primary outcome was MRC sum score at ICU discharge. Early mobilization improved MRC score (mean difference 4.2, 95% CI 1.8-6.6).\nType: RCT, English, 2024.",
+          "model": "jev-latest",
+          "questions": {
+            "decision": {
+              "type": "choice",
+              "instructions": "该题录在系统评价的初筛阶段应如何处理？",
+              "criteria": {
+                "include": "纳入，进入全文评估",
+                "exclude": "排除，不进全文",
+                "maybe": "存疑，需全文核实"
+              }
+            },
+            "exclude_reason": {
+              "type": "choice",
+              "instructions": "若排除或存疑，主要理由是什么？",
+              "criteria": {
+                "design": "研究设计不符",
+                "population": "人群不符",
+                "intervention": "干预不符",
+                "outcome": "结局指标不符",
+                "na": "未涉及目标主题",
+                "none": "无排除理由"
+              }
+            },
+            "is_rct": {
+              "type": "noul",
+              "instructions": "研究设计是否为随机对照试验（RCT）？"
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "instructions": "该初筛判断是否足够确定，可直接采纳而不必人工复核？"
+            }
+          }
+        },
+        "latency": 0.661,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "decision": {
+              "type": "choice",
+              "choice": "include",
+              "confidence": 0.85,
+              "probabilities": {
+                "maybe": 0.08,
+                "include": 0.91,
+                "exclude": 0.01
+              }
+            },
+            "exclude_reason": {
+              "type": "choice",
+              "choice": "none",
+              "confidence": 0.95,
+              "probabilities": {
+                "none": 0.97,
+                "intervention": 0.0,
+                "population": 0.0,
+                "outcome": 0.02,
+                "design": 0.0,
+                "na": 0.01
+              }
+            },
+            "is_rct": {
+              "type": "noul",
+              "noul": 0.99
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "noul": 0.24
+            }
+          },
+          "usage": {
+            "input_tokens": 667,
+            "output_tokens": 134
+          }
+        }
+      }
+    },
+    {
+      "id": "F1",
+      "group": "压缩",
+      "title": "工具调用结果处置：keep / compress / discard",
+      "note": "这条是「Agent 长程任务」的命门——把上下文管理从阈值硬截断，变成语义判断。",
+      "elapsed": 0.619,
+      "tokens": {
+        "inp": 698,
+        "out": 136
+      },
+      "io": {
+        "request": {
+          "state": "工具调用：Read 返回 src/legacy_export.py，共 1840 行。内容为一致性哈希分片导出逻辑，含 3 个类、若干 TODO 注释、大量历史兼容分支（对应 2019 年前的旧接口）。当前任务是修复分片不均的 bug，已定位到 _pick_shard() 函数约 40 行。上下文已占用 68%。",
+          "model": "jev-latest",
+          "questions": {
+            "action": {
+              "type": "choice",
+              "instructions": "这份工具输出应如何处理？",
+              "criteria": {
+                "keep": "完整保留",
+                "compress": "压缩为摘要保留",
+                "discard": "丢弃，后续可重新读取",
+                "keep_head_tail": "仅保留头尾关键段"
+              }
+            },
+            "keep_what": {
+              "type": "choice",
+              "instructions": "若保留或压缩，最该留下什么？",
+              "criteria": {
+                "target_fn": "目标函数及其调用点",
+                "signatures": "类与函数签名清单",
+                "todos": "TODO 与注释",
+                "all": "全部内容",
+                "none": "无需保留"
+              }
+            },
+            "context_pressure": {
+              "type": "score",
+              "instructions": "当前上下文压力",
+              "criteria": [
+                "充裕",
+                "正常",
+                "偏高",
+                "紧张",
+                "临界"
+              ]
+            },
+            "safe_to_drop": {
+              "type": "noul",
+              "instructions": "丢弃后，当前任务是否仍能在不重读该文件的情况下继续？"
+            }
+          }
+        },
+        "latency": 0.619,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "action": {
+              "type": "choice",
+              "choice": "keep_head_tail",
+              "confidence": 0.18,
+              "probabilities": {
+                "compress": 0.36,
+                "keep": 0.14,
+                "keep_head_tail": 0.38,
+                "discard": 0.12
+              }
+            },
+            "keep_what": {
+              "type": "choice",
+              "choice": "target_fn",
+              "confidence": 1.0,
+              "probabilities": {
+                "all": 0.0,
+                "signatures": 0.0,
+                "todos": 0.0,
+                "none": 0.0,
+                "target_fn": 1.0
+              }
+            },
+            "context_pressure": {
+              "type": "score",
+              "score": 2.74,
+              "confidence": 0.64,
+              "legend": {
+                "0": "充裕",
+                "1": "正常",
+                "2": "偏高",
+                "3": "紧张",
+                "4": "临界"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.02,
+                "2": 0.3,
+                "3": 0.59,
+                "4": 0.09
+              }
+            },
+            "safe_to_drop": {
+              "type": "noul",
+              "noul": 0.4
+            }
+          },
+          "usage": {
+            "input_tokens": 698,
+            "output_tokens": 136
+          }
+        }
+      }
+    },
+    {
+      "id": "F2",
+      "group": "压缩",
+      "title": "记忆写入决策：这条信息值不值得进长期记忆",
+      "note": "记忆库被垃圾污染是 Agent 的慢性病。让 Jev 当守门人，比按关键词或长度过滤靠谱得多。",
+      "elapsed": 0.613,
+      "tokens": {
+        "inp": 598,
+        "out": 135
+      },
+      "io": {
+        "request": {
+          "state": "对话片段：用户说「哦对了，我下周一到周三休假，有事微信找我。另外我那份报销单你记得周四帮我催一下。」上一轮对话主题是季度预算表。",
+          "model": "jev-latest",
+          "questions": {
+            "write_memory": {
+              "type": "noul",
+              "instructions": "这段信息是否值得写入长期记忆？"
+            },
+            "memory_type": {
+              "type": "choice",
+              "instructions": "若写入，属于哪类记忆？",
+              "criteria": {
+                "episodic": "临时事件（会过期，可不长期保存）",
+                "semantic": "长期事实/偏好（值得长期保存）",
+                "instruction": "稳定的行为指令",
+                "task": "待办任务（应进任务系统而非记忆）",
+                "noise": "噪声，不保存"
+              }
+            },
+            "ttl": {
+              "type": "choice",
+              "instructions": "建议的有效期？",
+              "criteria": {
+                "session": "仅本会话",
+                "days": "数天",
+                "month": "一个月内",
+                "permanent": "长期有效"
+              }
+            },
+            "should_schedule": {
+              "type": "noul",
+              "instructions": "是否应该顺带创建一个提醒/待办？"
+            }
+          }
+        },
+        "latency": 0.613,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "write_memory": {
+              "type": "noul",
+              "noul": 0.34
+            },
+            "memory_type": {
+              "type": "choice",
+              "choice": "task",
+              "confidence": 0.61,
+              "probabilities": {
+                "noise": 0.01,
+                "task": 0.69,
+                "episodic": 0.3,
+                "instruction": 0.0,
+                "semantic": 0.0
+              }
+            },
+            "ttl": {
+              "type": "choice",
+              "choice": "days",
+              "confidence": 0.92,
+              "probabilities": {
+                "permanent": 0.02,
+                "month": 0.01,
+                "session": 0.03,
+                "days": 0.94
+              }
+            },
+            "should_schedule": {
+              "type": "noul",
+              "noul": 0.89
+            }
+          },
+          "usage": {
+            "input_tokens": 598,
+            "output_tokens": 135
+          }
+        }
+      }
+    },
+    {
+      "id": "G1",
+      "group": "浏览器",
+      "title": "浏览器 Agent 的单步动作选择（结构化 DOM 观察 → 一个动作）",
+      "note": "这是社区最热的一支。核心洞见：点击 = 从 DOM 里做分类，不是长文生成。",
+      "elapsed": 0.58,
+      "tokens": {
+        "inp": 692,
+        "out": 138
+      },
+      "io": {
+        "request": {
+          "state": "目标：在酒店预订站找到「可免费取消」的房型。\n当前 DOM 抽象：page=hotel_detail, url=/hotel/8821, forms=[date_picker(已填 10-01→10-03)], sections=[room_list(3 项未展开), policy_tab, price_summary], visible_text 摘要='豪华大床房 ¥688起｜标准双床房 ¥599起｜行政套房 ¥1288起'。历史动作：已选日期、已输入城市。",
+          "model": "jev-latest",
+          "questions": {
+            "action": {
+              "type": "choice",
+              "instructions": "下一步应执行哪一个动作？",
+              "criteria": {
+                "expand_room_list": "展开房型列表以查看详情",
+                "open_policy_tab": "打开政策标签页查看取消规则",
+                "click_price": "点击某个价格查看明细",
+                "scroll": "向下滚动加载更多",
+                "submit_search": "重新发起搜索",
+                "done": "目标已达成，结束"
+              }
+            },
+            "target": {
+              "type": "choice",
+              "instructions": "若需要点击，目标元素是？",
+              "criteria": {
+                "room_item": "房型条目",
+                "policy_tab": "政策标签",
+                "price": "价格区域",
+                "next_page": "翻页",
+                "na": "无需点击"
+              }
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "instructions": "该动作是否足够有把握，可直接执行而无需回退保护？"
+            }
+          }
+        },
+        "latency": 0.58,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "action": {
+              "type": "choice",
+              "choice": "expand_room_list",
+              "confidence": 0.9,
+              "probabilities": {
+                "click_price": 0.0,
+                "open_policy_tab": 0.08,
+                "done": 0.0,
+                "submit_search": 0.0,
+                "expand_room_list": 0.92,
+                "scroll": 0.0
+              }
+            },
+            "target": {
+              "type": "choice",
+              "choice": "room_item",
+              "confidence": 0.66,
+              "probabilities": {
+                "policy_tab": 0.26,
+                "price": 0.0,
+                "next_page": 0.0,
+                "room_item": 0.73,
+                "na": 0.01
+              }
+            },
+            "confidence_ok": {
+              "type": "noul",
+              "noul": 0.24
+            }
+          },
+          "usage": {
+            "input_tokens": 692,
+            "output_tokens": 138
+          }
+        }
+      }
+    },
+    {
+      "id": "G2",
+      "group": "电脑操作",
+      "title": "Computer Use 单步：从界面语义描述定位可点目标",
+      "note": "和浏览器那支同构：把屏幕语义描述 + 可选动作集合交给 Jev，拿回一个动作。",
+      "elapsed": 0.586,
+      "tokens": {
+        "inp": 629,
+        "out": 127
+      },
+      "io": {
+        "request": {
+          "state": "屏幕描述：macOS 桌面，Finder 窗口打开在 /Users/fin/Documents/合同/，列表含 12 个 PDF，其中『2026Q3_供应商框架协议_v3_final.pdf』高亮选中。菜单栏可见。\n任务：把 v3 final 这一份发到指定邮箱（邮箱地址在剪贴板，已确认）。",
+          "model": "jev-latest",
+          "questions": {
+            "action": {
+              "type": "choice",
+              "instructions": "下一步动作？",
+              "criteria": {
+                "right_click": "右键呼出上下文菜单",
+                "open_menu": "点击顶部菜单栏",
+                "drag": "拖拽文件",
+                "keyboard": "用键盘快捷键",
+                "double_click": "双击打开文件",
+                "done": "任务已完成"
+              }
+            },
+            "risk": {
+              "type": "choice",
+              "instructions": "该动作是否可逆/是否涉及外发数据？",
+              "criteria": {
+                "safe": "完全可逆，无外发",
+                "reversible": "可逆但会改动文件",
+                "external": "会向外部发送数据",
+                "destructive": "不可逆且可能破坏数据"
+              }
+            },
+            "need_confirm": {
+              "type": "noul",
+              "instructions": "执行前是否需要用户确认？"
+            }
+          }
+        },
+        "latency": 0.586,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "action": {
+              "type": "choice",
+              "choice": "right_click",
+              "confidence": 0.89,
+              "probabilities": {
+                "right_click": 0.92,
+                "double_click": 0.0,
+                "open_menu": 0.02,
+                "keyboard": 0.03,
+                "done": 0.0,
+                "drag": 0.03
+              }
+            },
+            "risk": {
+              "type": "choice",
+              "choice": "external",
+              "confidence": 1.0,
+              "probabilities": {
+                "destructive": 0.0,
+                "external": 1.0,
+                "reversible": 0.0,
+                "safe": 0.0
+              }
+            },
+            "need_confirm": {
+              "type": "noul",
+              "noul": 0.64
+            }
+          },
+          "usage": {
+            "input_tokens": 629,
+            "output_tokens": 127
+          }
+        }
+      }
+    },
+    {
+      "id": "H1",
+      "group": "打分",
+      "title": "线索打分：不训分类器也能排序",
+      "note": "冷启动场景最实用——没有标注数据也能上线，先当排序器用。",
+      "elapsed": 0.607,
+      "tokens": {
+        "inp": 684,
+        "out": 130
+      },
+      "io": {
+        "request": {
+          "state": "线索：公司=某中型制造企业（约 600 人），职位=信息部经理，来源=官网白皮书下载，行为=3 天内访问定价页 4 次、下载 2 份技术文档、未留电话；预算线索：官网询价表填「年度 50-100 万」。",
+          "model": "jev-latest",
+          "questions": {
+            "icp_fit": {
+              "type": "score",
+              "instructions": "与理想客户画像的匹配度",
+              "criteria": [
+                "完全不符",
+                "偏弱",
+                "一般",
+                "较好",
+                "高度匹配"
+              ]
+            },
+            "intent": {
+              "type": "score",
+              "instructions": "购买意向强度",
+              "criteria": [
+                "无",
+                "弱",
+                "中",
+                "强",
+                "极强"
+              ]
+            },
+            "priority": {
+              "type": "choice",
+              "instructions": "销售应如何处置？",
+              "criteria": {
+                "hot": "高优：24h 内主动联系",
+                "warm": "常规跟进",
+                "nurture": "放养，走内容培育",
+                "disqualify": "判定不合格"
+              }
+            },
+            "blocker": {
+              "type": "choice",
+              "instructions": "最可能的成交阻碍？",
+              "criteria": {
+                "no_contact": "缺少关键联系人",
+                "budget": "预算不足",
+                "timing": "时机未到",
+                "authority": "决策权不在其手上",
+                "none": "无明显阻碍"
+              }
+            }
+          }
+        },
+        "latency": 0.607,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "icp_fit": {
+              "type": "score",
+              "score": 3.41,
+              "confidence": 0.51,
+              "legend": {
+                "0": "完全不符",
+                "1": "偏弱",
+                "2": "一般",
+                "3": "较好",
+                "4": "高度匹配"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.01,
+                "2": 0.04,
+                "3": 0.47,
+                "4": 0.48
+              }
+            },
+            "intent": {
+              "type": "score",
+              "score": 3.01,
+              "confidence": 0.9,
+              "legend": {
+                "0": "无",
+                "1": "弱",
+                "2": "中",
+                "3": "强",
+                "4": "极强"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.06,
+                "3": 0.87,
+                "4": 0.07
+              }
+            },
+            "priority": {
+              "type": "choice",
+              "choice": "hot",
+              "confidence": 0.86,
+              "probabilities": {
+                "disqualify": 0.0,
+                "nurture": 0.02,
+                "hot": 0.9,
+                "warm": 0.08
+              }
+            },
+            "blocker": {
+              "type": "choice",
+              "choice": "no_contact",
+              "confidence": 0.58,
+              "probabilities": {
+                "authority": 0.27,
+                "no_contact": 0.66,
+                "timing": 0.02,
+                "budget": 0.04,
+                "none": 0.01
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 684,
+            "output_tokens": 130
+          }
+        }
+      }
+    },
+    {
+      "id": "H2",
+      "group": "打分",
+      "title": "让 Jev 当裁判：评估一段输出是否达标",
+      "note": "把「人工 review」变成「Jev 判 + 只看它标的高风险项」，是评测与内容质检里最省钱的一招。",
+      "elapsed": 0.595,
+      "tokens": {
+        "inp": 629,
+        "out": 148
+      },
+      "io": {
+        "request": {
+          "state": "待评估输出（客服回复草稿）：您好，您的问题我们已经收到，会尽快为您处理，请您耐心等待，感谢理解与支持。\n评估要求：该回复需(a)回应客户的具体诉求（催发货）(b)给出可执行的时间承诺 (c)不包含空话套话。",
+          "model": "jev-latest",
+          "questions": {
+            "pass_a": {
+              "type": "noul",
+              "instructions": "是否回应了客户的具体诉求？"
+            },
+            "pass_b": {
+              "type": "noul",
+              "instructions": "是否给出了可执行的时间承诺？"
+            },
+            "pass_c": {
+              "type": "noul",
+              "instructions": "是否不含空话套话？"
+            },
+            "verdict": {
+              "type": "choice",
+              "instructions": "总体裁决",
+              "criteria": {
+                "ok": "达标可直接发送",
+                "revise": "需修改后发送",
+                "reject": "不合格，需重写"
+              }
+            },
+            "score": {
+              "type": "score",
+              "instructions": "质量评分",
+              "criteria": [
+                "很差",
+                "较差",
+                "合格",
+                "良好",
+                "优秀"
+              ]
+            },
+            "weakest": {
+              "type": "choice",
+              "instructions": "最该改的地方？",
+              "criteria": {
+                "a": "没回应诉求",
+                "b": "没有时间承诺",
+                "c": "全是套话",
+                "none": "无需修改"
+              }
+            }
+          }
+        },
+        "latency": 0.595,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "pass_a": {
+              "type": "noul",
+              "noul": 0.1
+            },
+            "pass_b": {
+              "type": "noul",
+              "noul": 0.02
+            },
+            "pass_c": {
+              "type": "noul",
+              "noul": 0.04
+            },
+            "verdict": {
+              "type": "choice",
+              "choice": "reject",
+              "confidence": 0.97,
+              "probabilities": {
+                "ok": 0.0,
+                "revise": 0.02,
+                "reject": 0.98
+              }
+            },
+            "score": {
+              "type": "score",
+              "score": 0.02,
+              "confidence": 0.98,
+              "legend": {
+                "0": "很差",
+                "1": "较差",
+                "2": "合格",
+                "3": "良好",
+                "4": "优秀"
+              },
+              "probabilities": {
+                "0": 0.98,
+                "1": 0.02,
+                "2": 0.0,
+                "3": 0.0,
+                "4": 0.0
+              }
+            },
+            "weakest": {
+              "type": "choice",
+              "choice": "b",
+              "confidence": 0.23,
+              "probabilities": {
+                "none": 0.0,
+                "b": 0.42,
+                "c": 0.38,
+                "a": 0.2
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 629,
+            "output_tokens": 148
+          }
+        }
+      }
+    },
+    {
+      "id": "H3",
+      "group": "打分",
+      "title": "高基数两阶段：Score 粗筛 → Choice 精选",
+      "note": "Choice 上限 255，但真正的痛点是「一次选一个」在高基数下不可靠。两阶段用一个常量代价先缩小范围。",
+      "elapsed": 1.802,
+      "tokens": {},
+      "io": {
+        "stage1": {
+          "request": {
+            "state": "用户查询：我买的耳机左边没声音了，还在保修期内，想换新的。",
+            "model": "jev-latest",
+            "questions": {
+              "domain": {
+                "type": "score",
+                "instructions": "该请求属于哪个一级域？",
+                "criteria": [
+                  "售前咨询",
+                  "售后维修/退换",
+                  "账单支付",
+                  "账号权限",
+                  "物流配送",
+                  "投诉建议"
+                ]
+              }
+            }
+          },
+          "latency": 0.983,
+          "status": 200,
+          "response": {
+            "model": "jev-1.13.0",
+            "answers": {
+              "domain": {
+                "type": "score",
+                "score": 1.0,
+                "confidence": 1.0,
+                "legend": {
+                  "0": "售前咨询",
+                  "1": "售后维修/退换",
+                  "2": "账单支付",
+                  "3": "账号权限",
+                  "4": "物流配送",
+                  "5": "投诉建议"
+                },
+                "probabilities": {
+                  "0": 0.0,
+                  "1": 1.0,
+                  "2": 0.0,
+                  "3": 0.0,
+                  "4": 0.0,
+                  "5": 0.0
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 369,
+              "output_tokens": 17
+            }
+          }
+        },
+        "stage2": {
+          "request": {
+            "state": "用户查询：我买的耳机左边没声音了，还在保修期内，想换新的。",
+            "model": "jev-latest",
+            "questions": {
+              "sub": {
+                "type": "choice",
+                "instructions": "一级域=售后维修/退换。在此域内细分类目。",
+                "criteria": {
+                  "repair": "维修",
+                  "replace": "换新",
+                  "return": "退货退款",
+                  "warranty_check": "保修资格咨询",
+                  "other": "其他"
+                }
+              }
+            }
+          },
+          "latency": 0.819,
+          "status": 200,
+          "response": {
+            "model": "jev-1.13.0",
+            "answers": {
+              "sub": {
+                "type": "choice",
+                "choice": "replace",
+                "confidence": 1.0,
+                "probabilities": {
+                  "warranty_check": 0.0,
+                  "repair": 0.0,
+                  "return": 0.0,
+                  "other": 0.0,
+                  "replace": 1.0
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 399,
+              "output_tokens": 56
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "I1",
+      "group": "Tabo",
+      "title": "陪伴机器人：此刻该不该主动开口",
+      "note": "主动开口是典型的「想清楚比说得好更重要」——判断该不该说，交 Jev；说什么，交 LLM。",
+      "elapsed": 0.655,
+      "tokens": {
+        "inp": 641,
+        "out": 97
+      },
+      "io": {
+        "request": {
+          "state": "设备状态：当前 22:41，用户已 27 分钟无语音输入，房间持续有键盘声（约 40 次/分钟），环境噪声中等，上次对话主题是「明天要交的周报」，用户最后一句话是「烦死了，先不聊了」。用户近 3 天平均入睡时间 01:20。",
+          "model": "jev-latest",
+          "questions": {
+            "act": {
+              "type": "choice",
+              "instructions": "此刻是否应该主动发起对话？",
+              "criteria": {
+                "speak_now": "立刻主动开口",
+                "wait": "继续等待，稍后再评估",
+                "gentle": "用极轻的方式试探（如动效/提示音，不出语音）",
+                "end_session": "判定本时段不宜打扰，进入免打扰"
+              }
+            },
+            "mood": {
+              "type": "score",
+              "instructions": "用户当前情绪状态",
+              "criteria": [
+                "很糟",
+                "烦躁",
+                "平静",
+                "不错",
+                "愉快"
+              ]
+            },
+            "topic_fit": {
+              "type": "noul",
+              "instructions": "若开口，接着「周报」这个话题是否合适？"
+            },
+            "interrupt_risk": {
+              "type": "score",
+              "instructions": "此刻打扰的冒犯风险",
+              "criteria": [
+                "无风险",
+                "低",
+                "中",
+                "高",
+                "很高"
+              ]
+            }
+          }
+        },
+        "latency": 0.655,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "act": {
+              "type": "choice",
+              "choice": "end_session",
+              "confidence": 0.58,
+              "probabilities": {
+                "wait": 0.21,
+                "speak_now": 0.0,
+                "end_session": 0.6799999999999999,
+                "gentle": 0.11
+              }
+            },
+            "mood": {
+              "type": "score",
+              "score": 0.97,
+              "confidence": 0.97,
+              "legend": {
+                "0": "很糟",
+                "1": "烦躁",
+                "2": "平静",
+                "3": "不错",
+                "4": "愉快"
+              },
+              "probabilities": {
+                "0": 0.03,
+                "1": 0.97,
+                "2": 0.0,
+                "3": 0.0,
+                "4": 0.0
+              }
+            },
+            "topic_fit": {
+              "type": "noul",
+              "noul": 0.3
+            },
+            "interrupt_risk": {
+              "type": "score",
+              "score": 3.35,
+              "confidence": 0.59,
+              "legend": {
+                "0": "无风险",
+                "1": "低",
+                "2": "中",
+                "3": "高",
+                "4": "很高"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.01,
+                "2": 0.03,
+                "3": 0.54,
+                "4": 0.42
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 641,
+            "output_tokens": 97
+          }
+        }
+      }
+    },
+    {
+      "id": "I2",
+      "group": "Tabo",
+      "title": "语音自反馈判定：这段输入是自己的 TTS 回声吗",
+      "note": "这是「一个判断抵一整条昂贵链路」的典型：先判回声，就不用把回声喂给 Whisper 去产生幻觉。",
+      "elapsed": 0.617,
+      "tokens": {
+        "inp": 691,
+        "out": 134
+      },
+      "io": {
+        "request": {
+          "state": "音频片段：时长 1.8s，与设备 0.9s 前播放的 TTS 音频余弦相似度 0.91；片段起始时间与 TTS 播放起点对齐；能量 -18dBFS（与播放音量相符）；语速与本机 TTS 一致；无用户特有的呼吸/停顿特征。",
+          "model": "jev-latest",
+          "questions": {
+            "is_echo": {
+              "type": "noul",
+              "instructions": "该音频片段是否属于本机扬声器回声/自反馈？"
+            },
+            "confidence_band": {
+              "type": "score",
+              "instructions": "判定把握度",
+              "criteria": [
+                "纯猜测",
+                "很弱",
+                "一般",
+                "较有把握",
+                "几乎确定"
+              ]
+            },
+            "action": {
+              "type": "choice",
+              "instructions": "音频前置处理应如何处理该片段？",
+              "criteria": {
+                "drop": "直接丢弃，不进 VAD/STT",
+                "attenuate": "做回声抑制后再判断",
+                "pass": "当作用户输入正常放行",
+                "hold": "暂存待与下一片段合并判断"
+              }
+            },
+            "source_guess": {
+              "type": "choice",
+              "instructions": "若确实是人声，最可能来自？",
+              "criteria": {
+                "self_tts": "本机 TTS 回放",
+                "media": "电视/音乐等外部音源",
+                "user_near": "近场用户",
+                "user_far": "远场用户",
+                "noise": "非人声噪声"
+              }
+            }
+          }
+        },
+        "latency": 0.617,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "is_echo": {
+              "type": "noul",
+              "noul": 0.83
+            },
+            "confidence_band": {
+              "type": "score",
+              "score": 3.93,
+              "confidence": 0.94,
+              "legend": {
+                "0": "纯猜测",
+                "1": "很弱",
+                "2": "一般",
+                "3": "较有把握",
+                "4": "几乎确定"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.0,
+                "2": 0.0,
+                "3": 0.05,
+                "4": 0.95
+              }
+            },
+            "action": {
+              "type": "choice",
+              "choice": "drop",
+              "confidence": 0.84,
+              "probabilities": {
+                "pass": 0.01,
+                "hold": 0.01,
+                "attenuate": 0.11,
+                "drop": 0.87
+              }
+            },
+            "source_guess": {
+              "type": "choice",
+              "choice": "self_tts",
+              "confidence": 1.0,
+              "probabilities": {
+                "noise": 0.0,
+                "media": 0.0,
+                "self_tts": 1.0,
+                "user_far": 0.0,
+                "user_near": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 691,
+            "output_tokens": 134
+          }
+        }
+      }
+    },
+    {
+      "id": "I3",
+      "group": "留学",
+      "title": "6 个项目匹配打分与排序（一次出全部）",
+      "note": "把「GPA 换算×课程匹配×作品集×职业目标」这类多维判断一次性摊平，比逐个写长 prompt 更稳。",
+      "elapsed": 0.638,
+      "tokens": {
+        "inp": 879,
+        "out": 214
+      },
+      "io": {
+        "request": {
+          "state": "申请人画像：华南师范大学 软件工程本科，GPA 3.5/4.0（专业前 15%），腾讯游戏实习（TA 方向），作品集含 2 个实时渲染 Demo + 1 个 Shader 工具，雅思 6.5（小分 6.0），目标是 Technical Artist。",
+          "model": "jev-latest",
+          "questions": {
+            "polyu_ime": {
+              "type": "score",
+              "instructions": "PolyU 创新多媒体娱乐(IME)：与申请人背景/目标的匹配度",
+              "criteria": [
+                "不匹配",
+                "偏弱",
+                "一般",
+                "较好",
+                "高度匹配"
+              ]
+            },
+            "hku_idt": {
+              "type": "score",
+              "instructions": "HKU 创新设计与技术(IDT)：匹配度",
+              "criteria": [
+                "不匹配",
+                "偏弱",
+                "一般",
+                "较好",
+                "高度匹配"
+              ]
+            },
+            "hkust_amc": {
+              "type": "score",
+              "instructions": "HKUST 人工智能与技术(AMC)：匹配度",
+              "criteria": [
+                "不匹配",
+                "偏弱",
+                "一般",
+                "较好",
+                "高度匹配"
+              ]
+            },
+            "best_fit": {
+              "type": "choice",
+              "instructions": "综合来看最应优先投入申请的是？",
+              "criteria": {
+                "polyu_ime": "PolyU IME",
+                "hku_idt": "HKU IDT",
+                "hkust_amc": "HKUST AMC",
+                "hkbu_aidm": "HKBU AIDM",
+                "hkustgz_mfa": "HKUST-GZ MFA CA",
+                "lingnan_atb": "Lingnan ATB"
+              }
+            },
+            "weakest_link": {
+              "type": "choice",
+              "instructions": "当前申请材料最需要补强的是？",
+              "criteria": {
+                "gpa": "GPA/学术",
+                "portfolio": "作品集",
+                "ielts": "语言成绩",
+                "internship": "实习/项目经历",
+                "research": "科研产出",
+                "none": "无明显短板"
+              }
+            },
+            "ielts_risk": {
+              "type": "noul",
+              "instructions": "雅思 6.5（小分 6.0）是否构成多数目标项目的门槛风险？"
+            }
+          }
+        },
+        "latency": 0.638,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "polyu_ime": {
+              "type": "score",
+              "score": 3.48,
+              "confidence": 0.57,
+              "legend": {
+                "0": "不匹配",
+                "1": "偏弱",
+                "2": "一般",
+                "3": "较好",
+                "4": "高度匹配"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.02,
+                "2": 0.05,
+                "3": 0.34,
+                "4": 0.59
+              }
+            },
+            "hku_idt": {
+              "type": "score",
+              "score": 3.09,
+              "confidence": 0.53,
+              "legend": {
+                "0": "不匹配",
+                "1": "偏弱",
+                "2": "一般",
+                "3": "较好",
+                "4": "高度匹配"
+              },
+              "probabilities": {
+                "0": 0.01,
+                "1": 0.06,
+                "2": 0.1,
+                "3": 0.51,
+                "4": 0.32
+              }
+            },
+            "hkust_amc": {
+              "type": "score",
+              "score": 1.47,
+              "confidence": 0.5,
+              "legend": {
+                "0": "不匹配",
+                "1": "偏弱",
+                "2": "一般",
+                "3": "较好",
+                "4": "高度匹配"
+              },
+              "probabilities": {
+                "0": 0.06,
+                "1": 0.54,
+                "2": 0.28,
+                "3": 0.12,
+                "4": 0.0
+              }
+            },
+            "best_fit": {
+              "type": "choice",
+              "choice": "polyu_ime",
+              "confidence": 0.27,
+              "probabilities": {
+                "hkbu_aidm": 0.07,
+                "lingnan_atb": 0.18,
+                "hku_idt": 0.1,
+                "polyu_ime": 0.38,
+                "hkust_amc": 0.13,
+                "hkustgz_mfa": 0.14
+              }
+            },
+            "weakest_link": {
+              "type": "choice",
+              "choice": "ielts",
+              "confidence": 0.36,
+              "probabilities": {
+                "research": 0.1,
+                "portfolio": 0.3,
+                "none": 0.07,
+                "internship": 0.06,
+                "gpa": 0.0,
+                "ielts": 0.47000000000000003
+              }
+            },
+            "ielts_risk": {
+              "type": "noul",
+              "noul": 0.54
+            }
+          },
+          "usage": {
+            "input_tokens": 879,
+            "output_tokens": 214
+          }
+        }
+      }
+    },
+    {
+      "id": "I4",
+      "group": "打分",
+      "title": "完成度验证：Agent 自称完成，证据是否成立",
+      "note": "Agent 撒谎的方式不是编造文本，而是过早宣布胜利。这一问价廉物美。",
+      "elapsed": 0.619,
+      "tokens": {
+        "inp": 728,
+        "out": 129
+      },
+      "io": {
+        "request": {
+          "state": "Agent 的完成汇报：任务=把 dashboard.html 的耳朵动画改为可配置。汇报内容=「已完成修改，动画参数已抽取到 config，测试通过。」\n证据：git diff 显示新增 config 段 12 行、改动 animation 调用 3 处；无新增测试文件；conftest 未改动；`pytest` 未在本次会话中执行过（工具调用记录里无 pytest 记录）；用户未验收。",
+          "model": "jev-latest",
+          "questions": {
+            "verified": {
+              "type": "noul",
+              "instructions": "「测试通过」这一声明是否有可核验的证据支撑？"
+            },
+            "claim_honest": {
+              "type": "choice",
+              "instructions": "该汇报属于哪种情况？",
+              "criteria": {
+                "ok": "证据充分，汇报属实",
+                "overclaim": "夸大：改动完成但未验证",
+                "false_claim": "虚假：声称的事情并未发生",
+                "partial": "部分完成，但未说明未完成项"
+              }
+            },
+            "next_action": {
+              "type": "choice",
+              "instructions": "系统应如何处置？",
+              "criteria": {
+                "accept": "接受，任务关闭",
+                "run_verify": "先自动补跑验证再关闭",
+                "bounce": "打回，要求补证据",
+                "flag": "记录为一次不实汇报并打回"
+              }
+            },
+            "trust_delta": {
+              "type": "score",
+              "instructions": "该 Agent 的行为对信任评级的影响",
+              "criteria": [
+                "无影响",
+                "轻微下调",
+                "中等下调",
+                "显著下调",
+                "应降级其权限"
+              ]
+            }
+          }
+        },
+        "latency": 0.619,
+        "status": 200,
+        "response": {
+          "model": "jev-1.13.0",
+          "answers": {
+            "verified": {
+              "type": "noul",
+              "noul": 0.04
+            },
+            "claim_honest": {
+              "type": "choice",
+              "choice": "overclaim",
+              "confidence": 0.89,
+              "probabilities": {
+                "ok": 0.0,
+                "false_claim": 0.08,
+                "partial": 0.0,
+                "overclaim": 0.92
+              }
+            },
+            "next_action": {
+              "type": "choice",
+              "choice": "run_verify",
+              "confidence": 0.37,
+              "probabilities": {
+                "run_verify": 0.53,
+                "bounce": 0.21,
+                "accept": 0.0,
+                "flag": 0.26
+              }
+            },
+            "trust_delta": {
+              "type": "score",
+              "score": 2.35,
+              "confidence": 0.46,
+              "legend": {
+                "0": "无影响",
+                "1": "轻微下调",
+                "2": "中等下调",
+                "3": "显著下调",
+                "4": "应降级其权限"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.1,
+                "2": 0.45,
+                "3": 0.45,
+                "4": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 728,
+            "output_tokens": 129
+          }
+        }
+      }
+    }
+  ]
+}
